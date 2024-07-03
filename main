@@ -1,0 +1,79 @@
+import tkinter as tk
+from tkinter import messagebox
+from classes.produto import Produto, Session, engine, Base
+
+# Criar uma janela principal
+root = tk.Tk()
+root.title("Sistema de Estoque")
+
+# Criar uma sessão para interagir com o banco de dados
+Base.metadata.create_all(engine)
+session = Session()
+
+# Função para inserir um novo produto
+def inserir_produto():
+    def salvar_produto():
+        codigo = entry_codigo.get()
+        nome = entry_nome.get()
+        unidade = entry_unidade.get()
+        descricao = entry_descricao.get()
+        estoqueMinimo = int(entry_estoque_minimo.get())
+        estoque = int(entry_estoque_atual.get())
+        preco = float(entry_preco.get())
+
+        novo_produto = Produto(codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco)
+        session.add(novo_produto)
+        session.commit()
+        messagebox.showinfo("Sucesso", "Produto inserido com sucesso!")
+
+    top = tk.Toplevel(root)
+    top.title("Inserir Novo Produto")
+
+    tk.Label(top, text="Código:").grid(row=0, column=0)
+    tk.Label(top, text="Nome:").grid(row=1, column=0)
+    tk.Label(top, text="Unidade:").grid(row=2, column=0)
+    tk.Label(top, text="Descrição:").grid(row=3, column=0)
+    tk.Label(top, text="Estoque Mínimo:").grid(row=4, column=0)
+    tk.Label(top, text="Estoque Atual:").grid(row=5, column=0)
+    tk.Label(top, text="Preço:").grid(row=6, column=0)
+
+    entry_codigo = tk.Entry(top)
+    entry_codigo.grid(row=0, column=1)
+    entry_nome = tk.Entry(top)
+    entry_nome.grid(row=1, column=1)
+    entry_unidade = tk.Entry(top)
+    entry_unidade.grid(row=2, column=1)
+    entry_descricao = tk.Entry(top)
+    entry_descricao.grid(row=3, column=1)
+    entry_estoque_minimo = tk.Entry(top)
+    entry_estoque_minimo.grid(row=4, column=1)
+    entry_estoque_atual = tk.Entry(top)
+    entry_estoque_atual.grid(row=5, column=1)
+    entry_preco = tk.Entry(top)
+    entry_preco.grid(row=6, column=1)
+
+    salvar_button = tk.Button(top, text="Salvar", command=salvar_produto)
+    salvar_button.grid(row=7, column=0, columnspan=2)
+
+# Função para exibir todos os produtos
+def exibir_produtos():
+    top = tk.Toplevel(root)
+    top.title("Produtos Cadastrados")
+
+    produtos = session.query(Produto).all()
+
+    if not produtos:
+        tk.Label(top, text="Nenhum produto cadastrado.").pack()
+    else:
+        for produto in produtos:
+            tk.Label(top, text=produto.exibir_informacoes()).pack()
+
+# Botões na janela principal
+btn_inserir = tk.Button(root, text="Inserir Novo Produto", command=inserir_produto)
+btn_inserir.pack()
+
+btn_exibir = tk.Button(root, text="Exibir Produtos Cadastrados", command=exibir_produtos)
+btn_exibir.pack()
+
+# Executar loop principal
+root.mainloop()
