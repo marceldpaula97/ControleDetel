@@ -1,0 +1,34 @@
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+DATABASE_URL = "sqlite:///produtos.db"
+engine = create_engine(DATABASE_URL, echo=True)
+Base = declarative_base()
+
+class Produto(Base):
+    __tablename__ = 'produtos'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    codigo = Column(String, unique=True, nullable=False)
+    nome = Column(String, nullable=False)
+    unidade = Column(String, nullable=False)
+    descricao = Column(String, nullable=False)
+    estoqueMinimo = Column(Integer, nullable=False)
+    estoque = Column(Integer, nullable=False)
+    preco = Column(Float, nullable=False)
+
+    def __init__(self, codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco):
+        self.codigo = codigo
+        self.nome = nome
+        self.unidade = unidade
+        self.descricao = descricao
+        self.estoqueMinimo = estoqueMinimo
+        self.estoque = estoque
+        self.preco = preco
+
+    def exibir_informacoes(self):
+        return f"Produto:\n  Código: {self.codigo}\n  Nome: {self.nome}\n  Unidade: {self.unidade}\n  Descrição: {self.descricao}\n  Estoque Mínimo: {self.estoqueMinimo}\n  Estoque Atual: {self.estoque}\n  Preço: R$ {self.preco:.2f}"
+
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
