@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, 
-    QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QHBoxLayout
+    QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QMenuBar, QAction
 )
 from PyQt5.QtCore import Qt
 from sqlalchemy import create_engine
@@ -45,7 +45,7 @@ class RegistroDialog(QDialog):
             session.add(novo_usuario)
             session.commit()
             QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
-            self.close()
+            self.accept()
 
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
@@ -158,26 +158,22 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Sistema de Estoque")
         self.setStyleSheet("QMainWindow { background-color: #e0e0e0; }")
 
-        inserir_button = QPushButton("Inserir Novo Produto")
-        inserir_button.setStyleSheet("QPushButton { background-color: #2196F3; color: white; padding: 10px; border-radius: 5px; }")
-        inserir_button.clicked.connect(self.abrir_inserir_produto)
+        # Configuração do menu
+        menubar = self.menuBar()
+        produto_menu = menubar.addMenu("Produto")
+        usuario_menu = menubar.addMenu("Usuário")
 
-        exibir_button = QPushButton("Exibir Produtos Cadastrados")
-        exibir_button.setStyleSheet("QPushButton { background-color: #FF9800; color: white; padding: 10px; border-radius: 5px; }")
-        exibir_button.clicked.connect(self.exibir_produtos)
+        inserir_produto_action = QAction("Inserir Novo Produto", self)
+        inserir_produto_action.triggered.connect(self.abrir_inserir_produto)
+        produto_menu.addAction(inserir_produto_action)
 
-        registrar_button = QPushButton("Registrar Usuário")
-        registrar_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px; }")
-        registrar_button.clicked.connect(self.registrar_usuario)
+        exibir_produtos_action = QAction("Exibir Produtos Cadastrados", self)
+        exibir_produtos_action.triggered.connect(self.exibir_produtos)
+        produto_menu.addAction(exibir_produtos_action)
 
-        central_widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignCenter)
-        layout.addWidget(inserir_button)
-        layout.addWidget(exibir_button)
-        layout.addWidget(registrar_button)
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
+        registrar_usuario_action = QAction("Registrar Usuário", self)
+        registrar_usuario_action.triggered.connect(self.registrar_usuario)
+        usuario_menu.addAction(registrar_usuario_action)
 
     def abrir_inserir_produto(self):
         dialog = InserirProdutoDialog(self)
@@ -194,8 +190,16 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    login_dialog = LoginDialog()
-    if login_dialog.exec_() == QDialog.Accepted:
-        window = MainWindow()
-        window.showMaximized()
-        sys.exit(app.exec_())
+    # Verifica se há usuários registrados
+    if session.query(Usuario).count() == 0:
+        registro_dialog = RegistroDialog()
+        if registro_dialog.exec_() == QDialog.Accepted:
+            window = MainWindow()
+            window.showMaximized()
+            sys.exit(app.exec_())
+    else:
+        login_dialog = LoginDialog()
+        if login_dialog.exec_() == QDialog.Accepted:
+            window = MainWindow()
+            window.showMaximized()
+            sys.exit(app.exec_())
