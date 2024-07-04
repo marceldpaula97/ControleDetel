@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, 
-    QMessageBox, QHBoxLayout, QFormLayout
+    QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
@@ -62,6 +62,36 @@ class InserirProdutoDialog(QDialog):
         QMessageBox.information(self, "Sucesso", "Produto inserido com sucesso!")
         self.close()
 
+class ExibirProdutosDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Produtos Cadastrados")
+        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+        
+        layout = QVBoxLayout()
+        
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["Código", "Nome", "Unidade", "Descrição", "Estoque Mínimo", "Estoque Atual", "Preço"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        
+        produtos = session.query(Produto).all()
+        
+        self.table.setRowCount(len(produtos))
+        
+        for row, produto in enumerate(produtos):
+            self.table.setItem(row, 0, QTableWidgetItem(produto.codigo))
+            self.table.setItem(row, 1, QTableWidgetItem(produto.nome))
+            self.table.setItem(row, 2, QTableWidgetItem(produto.unidade))
+            self.table.setItem(row, 3, QTableWidgetItem(produto.descricao))
+            self.table.setItem(row, 4, QTableWidgetItem(str(produto.estoqueMinimo)))
+            self.table.setItem(row, 5, QTableWidgetItem(str(produto.estoque)))
+            self.table.setItem(row, 6, QTableWidgetItem(f"{produto.preco:.2f}"))
+        
+        layout.addWidget(self.table)
+        self.setLayout(layout)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -89,13 +119,8 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
     def exibir_produtos(self):
-        produtos = session.query(Produto).all()
-
-        if not produtos:
-            QMessageBox.information(self, "Produtos Cadastrados", "Nenhum produto cadastrado.")
-        else:
-            texto_produtos = "\n".join([produto.exibir_informacoes() for produto in produtos])
-            QMessageBox.information(self, "Produtos Cadastrados", texto_produtos)
+        dialog = ExibirProdutosDialog(self)
+        dialog.exec_()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
