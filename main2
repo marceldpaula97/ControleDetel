@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox
+from PyQt5.QtWidgets import QWidget, QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from produto import Produto, Base
@@ -92,6 +92,12 @@ class MainWindow(QMainWindow):
         else:
             texto_produtos = "\n".join([produto.exibir_informacoes() for produto in produtos])
             QMessageBox.information(self, "Produtos Cadastrados", texto_produtos)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
