@@ -1,0 +1,303 @@
+import sys
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout,
+    QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QAction, QWidget
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont, QPalette
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from produto import Produto, Base, Usuario
+
+# Definir a conexão com o banco de dados SQLite
+DATABASE_URL = "sqlite:///produtos.db"
+engine = create_engine(DATABASE_URL, echo=True)
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+
+class RegistroDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Registrar Novo Usuário")
+
+        layout = QFormLayout()
+        self.entry_username = QLineEdit()
+        self.entry_password = QLineEdit()
+        self.entry_password.setEchoMode(QLineEdit.Password)
+
+        layout.addRow(QLabel("Username:"), self.entry_username)
+        layout.addRow(QLabel("Password:"), self.entry_password)
+
+        register_button = QPushButton("Registrar")
+        register_button.clicked.connect(self.registrar_usuario)
+        layout.addRow(register_button)
+
+        self.setLayout(layout)
+
+    def registrar_usuario(self):
+        username = self.entry_username.text()
+        password = self.entry_password.text()
+
+        if session.query(Usuario).filter_by(username=username).first():
+            QMessageBox.warning(self, "Erro", "Usuário já existe!")
+        else:
+            novo_usuario = Usuario(username=username, password=password)
+            session.add(novo_usuario)
+            session.commit()
+            QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
+            self.accept()
+
+
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Login")
+        self.resize(700, 550)  # Definir tamanho inicial da janela
+
+        self.setAutoFillBackground(True)
+        p = self.palette()
+        p.setColor(QPalette.Window, Qt.white)
+        self.setPalette(p)
+
+
+        # Centralizar a janela na tela
+        qt_rectangle = self.frameGeometry()
+        center_point = QApplication.desktop().availableGeometry().center()
+        qt_rectangle.moveCenter(center_point)
+        self.move(qt_rectangle.topLeft())
+
+        # Header
+        header = QWidget(self)
+        header.setGeometry(0, 0, 1360, 122)
+        header.setStyleSheet("background-color: #216191;")
+
+        # Título
+        title = QLabel('SISTEMA DE CONTROLE DE MATERIAIS', self)
+        title.setGeometry(0, 0, 1360, 122)  # Ajuste para cobrir toda a largura do header
+        title.setFont(QFont('Roboto', 20, QFont.Bold))
+        title.setStyleSheet("color: white;")
+        title.setAlignment(Qt.AlignCenter)
+
+        # Gray box
+        gray_box = QWidget(self)
+        gray_box.setGeometry(500, 197, 394, 275)
+        gray_box.setStyleSheet("background-color: #D9D9D9; border-radius: 10px;")
+
+        # Labels and input fields
+        user_label = QLabel('Usuário:', self)
+        user_label.setGeometry(550, 241, 100, 25)
+        user_label.setFont(QFont('Roboto', 14, QFont.Medium))
+        user_label.setAlignment(Qt.AlignCenter)
+
+        password_label = QLabel('Senha:', self)
+        password_label.setGeometry(550, 339, 100, 25)
+        password_label.setFont(QFont('Roboto', 14, QFont.Medium))
+        password_label.setAlignment(Qt.AlignCenter)
+
+        self.entry_username = QLineEdit(self)
+        self.entry_username.setGeometry(550, 266, 300, 50)
+        self.entry_username.setStyleSheet("background-color: white;")
+
+        self.entry_password = QLineEdit(self)
+        self.entry_password.setGeometry(550, 364, 300, 50)
+        self.entry_password.setStyleSheet("background-color: white;")
+        self.entry_password.setEchoMode(QLineEdit.Password)
+
+        # Login button
+        login_button = QPushButton('Login', self)
+        login_button.setGeometry(780, 424, 84, 40)  # Centralizar o botão de login
+        login_button.setStyleSheet(
+            "background-color: #216191; color: white; border-radius: 20px; font-family: Roboto; font-weight: 500; font-size: 14px;"
+        )
+        login_button.clicked.connect(self.verificar_login)
+
+    def verificar_login(self):
+        username = self.entry_username.text()
+        password = self.entry_password.text()
+
+        usuario = session.query(Usuario).filter_by(username=username, password=password).first()
+        if usuario:
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Erro", "Username ou senha incorretos")
+
+
+class InserirProdutoDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Inserir Novo Produto")
+        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+
+        layout = QFormLayout()
+
+        self.entry_codigo = QLineEdit()
+        self.entry_nome = QLineEdit()
+        self.entry_unidade = QLineEdit()
+        self.entry_descricao = QLineEdit()
+        self.entry_estoque_minimo = QLineEdit()
+        self.entry_estoque_atual = QLineEdit()
+        self.entry_preco = QLineEdit()
+
+        layout.addRow(QLabel("Código:"), self.entry_codigo)
+        layout.addRow(QLabel("Nome:"), self.entry_nome)
+        layout.addRow(QLabel("Unidade:"), self.entry_unidade)
+        layout.addRow(QLabel("Descrição:"), self.entry_descricao)
+        layout.addRow(QLabel("Estoque Mínimo:"), self.entry_estoque_minimo)
+        layout.addRow(QLabel("Estoque Atual:"), self.entry_estoque_atual)
+        layout.addRow(QLabel("Preço:"), self.entry_preco)
+
+        salvar_button = QPushButton("Salvar")
+        salvar_button.setStyleSheet(
+            "QPushButton { background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px; }")
+        salvar_button.clicked.connect(self.salvar_produto)
+        layout.addRow(salvar_button)
+
+        self.setLayout(layout)
+
+    def salvar_produto(self):
+        codigo = self.entry_codigo.text()
+        nome = self.entry_nome.text()
+        unidade = self.entry_unidade.text()
+        descricao = self.entry_descricao.text()
+        estoqueMinimo = int(self.entry_estoque_minimo.text())
+        estoque = int(self.entry_estoque_atual.text())
+        preco = float(self.entry_preco.text())
+
+        novo_produto = Produto(codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco)
+        session.add(novo_produto)
+        session.commit()
+        QMessageBox.information(self, "Sucesso", "Produto inserido com sucesso!")
+        self.close()
+
+
+class ExibirProdutosDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Produtos Cadastrados")
+        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+
+        layout = QVBoxLayout()
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(
+            ["Código", "Nome", "Unidade", "Descrição", "Estoque Mínimo", "Estoque Atual", "Preço"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        produtos = session.query(Produto).all()
+
+        self.table.setRowCount(len(produtos))
+
+        for row, produto in enumerate(produtos):
+            self.table.setItem(row, 0, QTableWidgetItem(produto.codigo))
+            self.table.setItem(row, 1, QTableWidgetItem(produto.nome))
+            self.table.setItem(row, 2, QTableWidgetItem(produto.unidade))
+            self.table.setItem(row, 3, QTableWidgetItem(produto.descricao))
+            self.table.setItem(row, 4, QTableWidgetItem(str(produto.estoqueMinimo)))
+            self.table.setItem(row, 5, QTableWidgetItem(str(produto.estoque)))
+            self.table.setItem(row, 6, QTableWidgetItem(f"{produto.preco:.2f}"))
+
+        layout.addWidget(self.table)
+        self.setLayout(layout)
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Sistema de Estoque")
+        self.setStyleSheet("QMainWindow { background-color: #e0e0e0; }")
+
+        # Configuração do menu
+        menubar = self.menuBar()
+        produto_menu = menubar.addMenu("Produto")
+        usuario_menu = menubar.addMenu("Usuário")
+
+        inserir_produto_action = QAction("Inserir Novo Produto", self)
+        inserir_produto_action.triggered.connect(self.abrir_inserir_produto)
+        produto_menu.addAction(inserir_produto_action)
+
+        exibir_produtos_action = QAction("Exibir Produtos Cadastrados", self)
+        exibir_produtos_action.triggered.connect(self.exibir_produtos)
+        produto_menu.addAction(exibir_produtos_action)
+
+        registrar_usuario_action = QAction("Registrar Usuário", self)
+        registrar_usuario_action.triggered.connect(self.registrar_usuario)
+        usuario_menu.addAction(registrar_usuario_action)
+
+        self.showMaximized()  # Mostra a janela maximizada
+
+    def center_main_window(self):
+        # Centralizar a janela principal após ser maximizada
+        screen_geometry = QApplication.desktop().availableGeometry()
+        window_geometry = self.geometry()
+        self.move((screen_geometry.width() - window_geometry.width()) // 2,
+                  (screen_geometry.height() - window_geometry.height()) // 2)
+
+    def abrir_inserir_produto(self):
+        dialog = InserirProdutoDialog(self)
+        dialog.exec_()
+
+    def exibir_produtos(self):
+        dialog = ExibirProdutosDialog(self)
+        dialog.exec_()
+
+    def registrar_usuario(self):
+        dialog = RegistroDialog(self)
+        dialog.exec_()
+
+class CadastroTecnicoDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Cadastro de Técnico")
+        self.resize(400, 200)
+
+        layout = QVBoxLayout()
+
+        self.entry_matricula = QLineEdit(self)
+        self.entry_matricula.setPlaceholderText("Matrícula")
+
+        self.entry_nome = QLineEdit(self)
+        self.entry_nome.setPlaceholderText("Nome")
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.cadastrar_tecnico)
+        button_box.rejected.connect(self.reject)
+
+        layout.addWidget(self.entry_matricula)
+        layout.addWidget(self.entry_nome)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+
+    def cadastrar_tecnico(self):
+        matricula = self.entry_matricula.text()
+        nome = self.entry_nome.text()
+
+        if matricula and nome:
+            novo_tecnico = Tecnico(matricula=matricula, nome=nome)
+            session.add(novo_tecnico)
+            session.commit()
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Erro", "Por favor, preencha todos os campos")
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    # Verifica se há usuários registrados
+    if session.query(Usuario).count() == 0:
+        registro_dialog = RegistroDialog()
+        if registro_dialog.exec_() == QDialog.Accepted:
+            window = MainWindow()
+            window.showMaximized()
+            sys.exit(app.exec_())
+    else:
+        login_dialog = LoginDialog()
+        login_dialog.showMaximized()  # Maximizar a janela de login
+        if login_dialog.exec_() == QDialog.Accepted:
+            window = MainWindow()
+            window.showMaximized()
+            sys.exit(app.exec_())
