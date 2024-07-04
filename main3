@@ -1,0 +1,104 @@
+import sys
+from PyQt5.QtWidgets import (
+    QWidget, QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, 
+    QMessageBox, QHBoxLayout, QFormLayout
+)
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from produto import Produto, Base
+
+# Definir a conexão com o banco de dados SQLite
+DATABASE_URL = "sqlite:///produtos.db"
+engine = create_engine(DATABASE_URL, echo=True)
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+class InserirProdutoDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Inserir Novo Produto")
+        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+
+        layout = QFormLayout()
+
+        self.entry_codigo = QLineEdit()
+        self.entry_nome = QLineEdit()
+        self.entry_unidade = QLineEdit()
+        self.entry_descricao = QLineEdit()
+        self.entry_estoque_minimo = QLineEdit()
+        self.entry_estoque_atual = QLineEdit()
+        self.entry_preco = QLineEdit()
+
+        layout.addRow(QLabel("Código:"), self.entry_codigo)
+        layout.addRow(QLabel("Nome:"), self.entry_nome)
+        layout.addRow(QLabel("Unidade:"), self.entry_unidade)
+        layout.addRow(QLabel("Descrição:"), self.entry_descricao)
+        layout.addRow(QLabel("Estoque Mínimo:"), self.entry_estoque_minimo)
+        layout.addRow(QLabel("Estoque Atual:"), self.entry_estoque_atual)
+        layout.addRow(QLabel("Preço:"), self.entry_preco)
+
+        salvar_button = QPushButton("Salvar")
+        salvar_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px; }")
+        salvar_button.clicked.connect(self.salvar_produto)
+        layout.addRow(salvar_button)
+
+        self.setLayout(layout)
+
+    def salvar_produto(self):
+        codigo = self.entry_codigo.text()
+        nome = self.entry_nome.text()
+        unidade = self.entry_unidade.text()
+        descricao = self.entry_descricao.text()
+        estoqueMinimo = int(self.entry_estoque_minimo.text())
+        estoque = int(self.entry_estoque_atual.text())
+        preco = float(self.entry_preco.text())
+
+        novo_produto = Produto(codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco)
+        session.add(novo_produto)
+        session.commit()
+        QMessageBox.information(self, "Sucesso", "Produto inserido com sucesso!")
+        self.close()
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Sistema de Estoque")
+        self.setStyleSheet("QMainWindow { background-color: #e0e0e0; }")
+
+        inserir_button = QPushButton("Inserir Novo Produto")
+        inserir_button.setStyleSheet("QPushButton { background-color: #2196F3; color: white; padding: 10px; border-radius: 5px; }")
+        inserir_button.clicked.connect(self.abrir_inserir_produto)
+
+        exibir_button = QPushButton("Exibir Produtos Cadastrados")
+        exibir_button.setStyleSheet("QPushButton { background-color: #FF9800; color: white; padding: 10px; border-radius: 5px; }")
+        exibir_button.clicked.connect(self.exibir_produtos)
+
+        central_widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignCenter)
+        layout.addWidget(inserir_button)
+        layout.addWidget(exibir_button)
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+
+    def abrir_inserir_produto(self):
+        dialog = InserirProdutoDialog(self)
+        dialog.exec_()
+
+    def exibir_produtos(self):
+        produtos = session.query(Produto).all()
+
+        if not produtos:
+            QMessageBox.information(self, "Produtos Cadastrados", "Nenhum produto cadastrado.")
+        else:
+            texto_produtos = "\n".join([produto.exibir_informacoes() for produto in produtos])
+            QMessageBox.information(self, "Produtos Cadastrados", texto_produtos)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
