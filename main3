@@ -3,11 +3,10 @@ from PyQt5.QtWidgets import (
     QWidget, QApplication, QMainWindow, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, 
     QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from produto import Produto, Base
+from produto import Produto, Base, Usuario
 
 # Definir a conexão com o banco de dados SQLite
 DATABASE_URL = "sqlite:///produtos.db"
@@ -16,81 +15,66 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-class InserirProdutoDialog(QDialog):
+class RegistroDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Inserir Novo Produto")
-        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+        self.setWindowTitle("Registrar Novo Usuário")
 
         layout = QFormLayout()
+        self.entry_username = QLineEdit()
+        self.entry_password = QLineEdit()
+        self.entry_password.setEchoMode(QLineEdit.Password)
 
-        self.entry_codigo = QLineEdit()
-        self.entry_nome = QLineEdit()
-        self.entry_unidade = QLineEdit()
-        self.entry_descricao = QLineEdit()
-        self.entry_estoque_minimo = QLineEdit()
-        self.entry_estoque_atual = QLineEdit()
-        self.entry_preco = QLineEdit()
+        layout.addRow(QLabel("Username:"), self.entry_username)
+        layout.addRow(QLabel("Password:"), self.entry_password)
 
-        layout.addRow(QLabel("Código:"), self.entry_codigo)
-        layout.addRow(QLabel("Nome:"), self.entry_nome)
-        layout.addRow(QLabel("Unidade:"), self.entry_unidade)
-        layout.addRow(QLabel("Descrição:"), self.entry_descricao)
-        layout.addRow(QLabel("Estoque Mínimo:"), self.entry_estoque_minimo)
-        layout.addRow(QLabel("Estoque Atual:"), self.entry_estoque_atual)
-        layout.addRow(QLabel("Preço:"), self.entry_preco)
-
-        salvar_button = QPushButton("Salvar")
-        salvar_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px; }")
-        salvar_button.clicked.connect(self.salvar_produto)
-        layout.addRow(salvar_button)
+        register_button = QPushButton("Registrar")
+        register_button.clicked.connect(self.registrar_usuario)
+        layout.addRow(register_button)
 
         self.setLayout(layout)
 
-    def salvar_produto(self):
-        codigo = self.entry_codigo.text()
-        nome = self.entry_nome.text()
-        unidade = self.entry_unidade.text()
-        descricao = self.entry_descricao.text()
-        estoqueMinimo = int(self.entry_estoque_minimo.text())
-        estoque = int(self.entry_estoque_atual.text())
-        preco = float(self.entry_preco.text())
+    def registrar_usuario(self):
+        username = self.entry_username.text()
+        password = self.entry_password.text()
 
-        novo_produto = Produto(codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco)
-        session.add(novo_produto)
-        session.commit()
-        QMessageBox.information(self, "Sucesso", "Produto inserido com sucesso!")
-        self.close()
+        if session.query(Usuario).filter_by(username=username).first():
+            QMessageBox.warning(self, "Erro", "Usuário já existe!")
+        else:
+            novo_usuario = Usuario(username=username, password=password)
+            session.add(novo_usuario)
+            session.commit()
+            QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
+            self.close()
 
-class ExibirProdutosDialog(QDialog):
+class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Produtos Cadastrados")
-        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
-        
-        layout = QVBoxLayout()
-        
-        self.table = QTableWidget()
-        self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["Código", "Nome", "Unidade", "Descrição", "Estoque Mínimo", "Estoque Atual", "Preço"])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        
-        produtos = session.query(Produto).all()
-        
-        self.table.setRowCount(len(produtos))
-        
-        for row, produto in enumerate(produtos):
-            self.table.setItem(row, 0, QTableWidgetItem(produto.codigo))
-            self.table.setItem(row, 1, QTableWidgetItem(produto.nome))
-            self.table.setItem(row, 2, QTableWidgetItem(produto.unidade))
-            self.table.setItem(row, 3, QTableWidgetItem(produto.descricao))
-            self.table.setItem(row, 4, QTableWidgetItem(str(produto.estoqueMinimo)))
-            self.table.setItem(row, 5, QTableWidgetItem(str(produto.estoque)))
-            self.table.setItem(row, 6, QTableWidgetItem(f"{produto.preco:.2f}"))
-        
-        layout.addWidget(self.table)
+        self.setWindowTitle("Login")
+
+        layout = QFormLayout()
+        self.entry_username = QLineEdit()
+        self.entry_password = QLineEdit()
+        self.entry_password.setEchoMode(QLineEdit.Password)
+
+        layout.addRow(QLabel("Username:"), self.entry_username)
+        layout.addRow(QLabel("Password:"), self.entry_password)
+
+        login_button = QPushButton("Login")
+        login_button.clicked.connect(self.verificar_login)
+        layout.addRow(login_button)
+
         self.setLayout(layout)
+
+    def verificar_login(self):
+        username = self.entry_username.text()
+        password = self.entry_password.text()
+
+        usuario = session.query(Usuario).filter_by(username=username, password=password).first()
+        if usuario:
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Erro", "Username ou senha incorretos")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -124,6 +108,9 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
-    window.showFullScreen()  # Exibe a janela principal em tela cheia
-    sys.exit(app.exec_())
+
+    login_dialog = LoginDialog()
+    if login_dialog.exec_() == QDialog.Accepted:
+        window = MainWindow()
+        window.showMaximized()
+        sys.exit(app.exec_())
