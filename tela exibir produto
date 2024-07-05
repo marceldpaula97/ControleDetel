@@ -1,0 +1,43 @@
+class ExibirProdutosDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Produtos Cadastrados")
+        self.setStyleSheet("QDialog { background-color: #f0f0f0; }")
+        self.resize(800, 600)
+
+        layout = QVBoxLayout()
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(
+            ["Código", "Nome", "Unidade", "Descrição", "Estoque Mínimo", "Estoque Atual", "Preço"])
+        
+        # Estilo do cabeçalho
+        header = self.table.horizontalHeader()
+        header.setStyleSheet("QHeaderView::section { background-color: #0078D4; color: white; font-weight: bold; }")
+        header.setFont(QFont('Segoe UI', 10, QFont.Bold))
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+        # Estilo da tabela
+        self.table.setStyleSheet("""
+            QTableWidget::item { padding: 10px; }
+            QTableWidget::item:selected { background-color: #6cace4; color: white; }
+            QTableWidget { gridline-color: #ccc; }
+        """)
+        self.table.setFont(QFont('Segoe UI', 10))
+
+        produtos = session.query(Produto).all()
+
+        self.table.setRowCount(len(produtos))
+
+        for row, produto in enumerate(produtos):
+            self.table.setItem(row, 0, QTableWidgetItem(produto.codigo))
+            self.table.setItem(row, 1, QTableWidgetItem(produto.nome))
+            self.table.setItem(row, 2, QTableWidgetItem(produto.unidade))
+            self.table.setItem(row, 3, QTableWidgetItem(produto.descricao))
+            self.table.setItem(row, 4, QTableWidgetItem(str(produto.estoqueMinimo)))
+            self.table.setItem(row, 5, QTableWidgetItem(str(produto.estoque)))
+            self.table.setItem(row, 6, QTableWidgetItem(f"{produto.preco:.2f}"))
+
+        layout.addWidget(self.table)
+        self.setLayout(layout)
