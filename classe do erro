@@ -1,0 +1,106 @@
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from datetime import date
+
+DATABASE_URL = "sqlite:///produtos.db"
+engine = create_engine(DATABASE_URL, echo=True)
+Base = declarative_base()
+
+class EntradaMaterial(Base):
+    __tablename__ = 'entradas_materiais'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nota_fiscal = Column(String, nullable=False)
+    quantidade = Column(Integer, nullable=False)
+    data = Column (Date, nullable=False, default=date.today)
+    produto_id = Column(Integer, ForeignKey('produtos.id'), nullable=False)
+    produto = relationship("Produto")
+
+    def __init__(self, nota_fiscal,quantidade,data,produto_id,produto):
+        self.data = data
+        self.quantidade = quantidade
+        self.nota_fiscal = nota_fiscal
+        self.produto_id = produto_id
+
+class SaidaMaterial(Base):
+    __tablename__ = 'saida_materiais'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tecnico_id = Column(String,ForeignKey('tecnicos.id'),nullable=False)
+    tecnico = relationship("Tecnico")
+    usuario_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)
+    usuario = relationship("Usuario")
+    ordem_servico = Column(String, nullable=False)
+    data = Column(Date, nullable=False, default=date.today)
+    local = Column(String, nullable=False)
+    num_patrimonio = Column(String)
+    produto_id = Column(String, ForeignKey('produtos.id'),nullable=False)
+    produto = relationship("Produto")
+
+    def __init__(self,tecnico_id,usuario_id, ordem_servico, data, local, num_patrimonio,produto_id):
+        self.tecnico_id = tecnico_id
+        self.usuario_id = usuario_id
+        self.data = data
+        self.local = local
+        self.num_patrimonio = num_patrimonio
+        self.produto_id = produto_id
+        self.ordem_servico = ordem_servico
+
+
+
+class Usuario(Base):
+    __tablename__ = 'usuarios'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
+
+class Produto(Base):
+    __tablename__ = 'produtos'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    codigo = Column(String, unique=True, nullable=False)
+    nome = Column(String, nullable=False)
+    unidade = Column(String, nullable=False)
+    descricao = Column(String, nullable=False)
+    estoqueMinimo = Column(Integer, nullable=False)
+    estoque = Column(Integer, nullable=False)
+    preco = Column(Float, nullable=False)
+
+    def __init__(self, codigo, nome, unidade, descricao, estoqueMinimo, estoque, preco):
+        self.codigo = codigo
+        self.nome = nome
+        self.unidade = unidade
+        self.descricao = descricao
+        self.estoqueMinimo = estoqueMinimo
+        self.estoque = estoque
+        self.preco = preco
+
+class Empresa(Base):
+    __tablename__ = 'empresas'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String, nullable=False)
+    cnpj = Column(String, unique=True, nullable=False)
+
+    def __init__(self, nome, cnpj):
+        self.nome = nome
+        self.cnpj = cnpj
+
+class Tecnico(Base):
+    __tablename__ = 'tecnicos'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String, unique=True, nullable=False)
+    telefone = Column(String, nullable=False)
+    matricula = Column(String, unique=True, nullable=False)
+
+    def __init__(self, nome, telefone, matricula):
+        self.nome = nome
+        self.telefone = telefone
+        self.matricula = matricula
+
+    def exibir_informacoes(self):
+        return f"Técnico:\n  Nome: {self.nome}\n  Telefone: {self.telefone}\n  Matrícula: {self.matricula}"
+
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
