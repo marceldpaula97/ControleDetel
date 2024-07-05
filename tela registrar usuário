@@ -1,0 +1,12 @@
+    def registrar_usuario(self):
+        username = self.entry_username.text()
+        password = self.entry_password.text()
+
+        if session.query(Usuario).filter_by(username=username).first():
+            QMessageBox.warning(self, "Erro", "Usuário já existe!")
+        else:
+            novo_usuario = Usuario(username=username, password=password)
+            session.add(novo_usuario)
+            session.commit()
+            QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
+            self.accept()
