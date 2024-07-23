@@ -1,0 +1,111 @@
+import sys
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QGraphicsOpacityEffect
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Sistema de Controle de Materiais")
+        self.setGeometry(100, 100, 500, 400)
+        self.setMinimumSize(500, 400)
+        self.setFixedSize(self.size())
+
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #3498db; /* Azul */
+                color: #ecf0f1;
+            }
+            QLabel {
+                font-size: 22px;
+                font-weight: bold;
+                color: #ecf0f1;
+                padding: 10px;
+            }
+            QLineEdit {
+                background-color: #ecf0f1; /* Branco */
+                border: 2px solid #2980b9; /* Azul escuro */
+                padding: 10px;
+                border-radius: 5px;
+                color: #2c3e50; /* Texto escuro */
+            }
+            QLineEdit:focus {
+                border-color: #1abc9c; /* Verde */
+            }
+            QPushButton {
+                border: none;
+                padding: 10px;
+                border-radius: 5px;
+                color: #ecf0f1;
+                font-weight: bold;
+            }
+            QPushButton#login {
+                background-color: #2980b9; /* Azul escuro */
+            }
+            QPushButton#login:hover {
+                background-color: #1abc9c; /* Verde */
+            }
+            QPushButton#register {
+                background-color: #2ecc71; /* Verde claro */
+            }
+            QPushButton#register:hover {
+                background-color: #27ae60; /* Verde escuro */
+            }
+        """)
+
+        self.central_widget = QWidget(self)
+        self.setCentralWidget(self.central_widget)
+
+        self.layout = QVBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(20, 40, 20, 20)
+
+        self.label_title = QLabel("SISTEMA DE CONTROLE DE MATERIAIS", self)
+        self.label_title.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.label_title)
+
+        self.username = QLineEdit(self)
+        self.username.setPlaceholderText("Usuário")
+        self.layout.addWidget(self.username)
+
+        self.password = QLineEdit(self)
+        self.password.setPlaceholderText("Senha")
+        self.password.setEchoMode(QLineEdit.Password)
+        self.layout.addWidget(self.password)
+
+        self.button_layout = QHBoxLayout()
+        self.button_login = QPushButton("Login", self)
+        self.button_login.setObjectName("login")
+        self.button_login.clicked.connect(self.handle_login)
+        self.button_layout.addWidget(self.button_login)
+
+        self.button_register = QPushButton("Registrar", self)
+        self.button_register.setObjectName("register")
+        self.button_layout.addWidget(self.button_register)
+
+        self.layout.addLayout(self.button_layout)
+
+    def handle_login(self):
+        self.fade_out_widget(self.label_title)
+        self.fade_out_widget(self.username)
+        self.fade_out_widget(self.password)
+        self.fade_out_widget(self.button_login)
+        self.fade_out_widget(self.button_register)
+
+    def fade_out_widget(self, widget):
+        # Criar o efeito de opacidade
+        opacity_effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(opacity_effect)
+
+        # Criar a animação de opacidade
+        animation = QPropertyAnimation(opacity_effect, b"opacity")
+        animation.setDuration(1000)
+        animation.setStartValue(1.0)
+        animation.setEndValue(0.0)
+        animation.setEasingCurve(QEasingCurve.OutQuad)
+        animation.finished.connect(widget.hide)  # Ocultar o widget após a animação
+        animation.start()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
