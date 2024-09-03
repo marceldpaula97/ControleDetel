@@ -1,16 +1,24 @@
 import socket
 
 # Substitua pelo endereço IP do servidor
-SERVER_HOST = '192.168.4.114'  # Coloque aqui o IP do servidor
+SERVER_HOST = '192.168.0.10'  # Coloque aqui o IP do servidor
 SERVER_PORT = 5000            # Porta que o servidor está usando
+
+# Função para coletar as informações do usuário
+def coletar_dados_usuario():
+    nome_usuario = input("Digite seu nome de usuário: ")
+    senha = input("Digite sua senha: ")
+    return f"Nome de Usuário: {nome_usuario}, Senha: {senha}"
 
 # Criação de um socket TCP/IP
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.connect((SERVER_HOST, SERVER_PORT))  # Conecta ao servidor
 
-# Envia uma mensagem para o servidor
-message = "Olá, servidor!"
-client_socket.sendall(message.encode())
+# Coleta os dados do usuário
+dados_usuario = coletar_dados_usuario()
+
+# Envia os dados do usuário para o servidor
+client_socket.sendall(dados_usuario.encode())
 
 # Recebe a resposta do servidor
 response = client_socket.recv(1024).decode()
