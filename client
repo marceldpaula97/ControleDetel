@@ -8,12 +8,14 @@ def registrar_usuario():
     nome = input("Digite seu nome de usuário: ")
     senha = input("Digite sua senha: ")
     message = f"REGISTRAR,{nome},{senha}"
+    print(f"Mensagem de registro enviada: {message}")
     return message
 
 def fazer_login():
     nome = input("Digite seu nome de usuário: ")
     senha = input("Digite sua senha: ")
     message = f"LOGIN,{nome},{senha}"
+    print(f"Mensagem de login enviada: {message}")
     return message
 
 def enviar_mensagem_servidor(message):
