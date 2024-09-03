@@ -1,28 +1,21 @@
 import socket
 
 # Substitua pelo endereço IP do servidor
-SERVER_HOST = '192.168.0.10'  # Coloque aqui o IP do servidor
+SERVER_HOST = '192.168.4.114'  # Coloque aqui o IP do servidor
 SERVER_PORT = 5000            # Porta que o servidor está usando
 
-# Função para coletar as informações do usuário
-def coletar_dados_usuario():
-    nome_usuario = input("Digite seu nome de usuário: ")
+def registrar_usuario():
+    nome = input("Digite seu nome de usuário: ")
     senha = input("Digite sua senha: ")
-    return f"Nome de Usuário: {nome_usuario}, Senha: {senha}"
+    message = f"REGISTRAR,{nome},{senha}"
+    return message
 
-# Criação de um socket TCP/IP
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client_socket.connect((SERVER_HOST, SERVER_PORT))  # Conecta ao servidor
+def fazer_login():
+    nome = input("Digite seu nome de usuário: ")
+    senha = input("Digite sua senha: ")
+    message = f"LOGIN,{nome},{senha}"
+    return message
 
-# Coleta os dados do usuário
-dados_usuario = coletar_dados_usuario()
-
-# Envia os dados do usuário para o servidor
-client_socket.sendall(dados_usuario.encode())
-
-# Recebe a resposta do servidor
-response = client_socket.recv(1024).decode()
-print(f"Resposta do servidor: {response}")
-
-# Fecha a conexão com o servidor
-client_socket.close()
+def enviar_mensagem_servidor(message):
+    # Criação de um socket TCP/IP
+    client_socket = socke
