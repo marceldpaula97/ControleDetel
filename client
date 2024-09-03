@@ -1,7 +1,7 @@
 import socket
 
 # Substitua pelo endereço IP do servidor
-SERVER_HOST = '192.168.4.114'  # Coloque aqui o IP do servidor
+SERVER_HOST = '192.168.0.10'  # Coloque aqui o IP do servidor
 SERVER_PORT = 5000            # Porta que o servidor está usando
 
 def registrar_usuario():
