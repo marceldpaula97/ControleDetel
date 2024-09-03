@@ -18,4 +18,33 @@ def fazer_login():
 
 def enviar_mensagem_servidor(message):
     # Criação de um socket TCP/IP
-    client_socket = socke
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((SERVER_HOST, SERVER_PORT))
+
+    # Envia a mensagem ao servidor
+    client_socket.sendall(message.encode())
+
+    # Recebe a resposta do servidor
+    response = client_socket.recv(1024).decode()
+    print(f"Resposta do servidor: {response}")
+
+    # Fecha a conexão com o servidor
+    client_socket.close()
+
+def main():
+    print("1. Registrar novo usuário")
+    print("2. Fazer login")
+    escolha = input("Escolha uma opção (1 ou 2): ")
+
+    if escolha == '1':
+        message = registrar_usuario()
+    elif escolha == '2':
+        message = fazer_login()
+    else:
+        print("Opção inválida.")
+        return
+
+    enviar_mensagem_servidor(message)
+
+if __name__ == "__main__":
+    main()
