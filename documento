@@ -122,9 +122,9 @@ class TelaEstoque(TelaBaseComESC):
         layout.addWidget(self.combo_status)
 
         self.tabela_estoque = QtWidgets.QTableWidget()
-        self.tabela_estoque.setColumnCount(6)  # Reduzido para 6 colunas
+        self.tabela_estoque.setColumnCount(6)
 
-        self.tabela_estoque.setColumnWidth(0, 80)   # ID
+        self.tabela_estoque.setColumnWidth(0, 80)  # ID
         self.tabela_estoque.setColumnWidth(1, 200)  # Nome do Produto
         self.tabela_estoque.setColumnWidth(2, 100)  # Quantidade
         self.tabela_estoque.setColumnWidth(3, 100)  # Unidade de Medida
@@ -198,59 +198,6 @@ class TelaEstoque(TelaBaseComESC):
             logger.exception("Erro ao carregar dados")
             QtWidgets.QMessageBox.critical(self, 'Erro', f'Erro ao carregar dados: {e}')
 
-    def carregar_dados(self):
-        try:
-            self.tabela_estoque.setRowCount(0)
-
-            estoques = session.query(
-                Material.id,
-                Material.nome,
-                Estoque.quantidade,
-                Estoque.valor_minimo,
-                Estoque.status,
-                Estoque.unidade_medida
-            ).join(Estoque).all()
-
-            for estoque in estoques:
-                row_position = self.tabela_estoque.rowCount()
-                self.tabela_estoque.insertRow(row_position)
-
-                # ID do Material
-                self.tabela_estoque.setItem(row_position, 0, QtWidgets.QTableWidgetItem(str(estoque.id)))
-
-                # Nome do Produto
-                self.tabela_estoque.setItem(row_position, 1, QtWidgets.QTableWidgetItem(estoque.nome))
-
-                # Quantidade nas diferentes unidades
-                quantidade = estoque.quantidade if estoque.quantidade is not None else 0
-                unidade_padrao = estoque.unidade_medida if estoque.unidade_medida is not None else 'Unidade'
-
-                self.tabela_estoque.setItem(row_position, 2, QtWidgets.QTableWidgetItem(
-                    str(quantidade if unidade_padrao == 'Unidade' else '')))
-                self.tabela_estoque.setItem(row_position, 3, QtWidgets.QTableWidgetItem(
-                    str(quantidade if unidade_padrao == 'KG' else '')))
-                self.tabela_estoque.setItem(row_position, 4, QtWidgets.QTableWidgetItem(
-                    str(quantidade if unidade_padrao == 'Metro' else '')))
-
-                # Valor Mínimo (editável)
-                valor_minimo_item = QtWidgets.QTableWidgetItem(
-                    str(estoque.valor_minimo) if estoque.valor_minimo is not None else '')
-                self.tabela_estoque.setItem(row_position, 5, valor_minimo_item)
-
-                # Status
-                status_item = QtWidgets.QTableWidgetItem(
-                    estoque.status if estoque.status is not None else 'Desconhecido')
-                self.tabela_estoque.setItem(row_position, 6, status_item)
-
-                # Unidade Padrão
-                self.tabela_estoque.setItem(row_position, 7, QtWidgets.QTableWidgetItem(unidade_padrao))
-
-                self.atualizar_status(row_position)
-
-            self.tabela_estoque.itemChanged.connect(self.atualizar_valor_minimo)
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, 'Erro', f'Erro ao carregar dados: {e}')
-
     def atualizar_status(self, row):
         try:
             valor_minimo_item = self.tabela_estoque.item(row, 4)
@@ -277,7 +224,7 @@ class TelaEstoque(TelaBaseComESC):
                 status_item.setBackground(QtGui.QColor('white'))
                 status_item.setText('Normal')
         except Exception as e:
-            print(f"Erro ao atualizar status da linha {row}: {e}")
+            logger.error(f"Erro ao atualizar status da linha {row}: {e}")
 
     def atualizar_valor_minimo(self, item):
         try:
@@ -293,23 +240,8 @@ class TelaEstoque(TelaBaseComESC):
 
                 self.atualizar_status(row)
         except Exception as e:
+            logger.error(f"Erro ao atualizar valor mínimo: {e}")
             QtWidgets.QMessageBox.critical(self, 'Erro', f'Erro ao atualizar valor mínimo: {e}')
-    def atualizar_valor_minimo(self, item):
-        try:
-            if item.column() == 5:  # Coluna do valor mínimo
-                row = item.row()
-                material_id = int(self.tabela_estoque.item(row, 0).text())
-
-                novo_valor_minimo = float(item.text())
-                estoque = session.query(Estoque).filter_by(material_id=material_id).first()
-                if estoque:
-                    estoque.valor_minimo = novo_valor_minimo
-                    session.commit()
-
-                self.atualizar_status(row)
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, 'Erro', f'Erro ao atualizar valor mínimo: {e}')
-
 
     def filtrar_dados(self):
         texto_pesquisa = self.campo_pesquisa.text().lower()
@@ -327,7 +259,4 @@ class TelaEstoque(TelaBaseComESC):
             match_texto = texto_pesquisa in id_text or texto_pesquisa in nome_text
             match_status = status_filtro == "Todos" or status_text == status_filtro
 
-            if match_texto and match_status:
-                self.tabela_estoque.setRowHidden(row, False)
-            else:
-                self.tabela_estoque.setRowHidden(row, True)
+            self.tabela_estoque.setRowHidden(row, not (match_texto and match_status))
