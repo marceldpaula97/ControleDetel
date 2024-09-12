@@ -1,41 +1,453 @@
-self.tipo_documento_combo.setStyleSheet("""
-    QComboBox {
-        background-color: rgba(255, 255, 255, 0.8);
-        border: 2px solid #78909c;
-        border-radius: 6px;
-        padding: 10px;  /* Aumentar o padding para expandir o campo */
-        font-size: 14px;  /* Aumentar o tamanho da fonte */
-        color: #37474f;
-    }
-    QComboBox:focus {
-        border: 2px solid #546e7a;
-    }
-""")
+from datetime import datetime
+from PyQt5.QtWidgets import (QWidget, QLineEdit, QLabel, QPushButton, QMessageBox, QVBoxLayout, QScrollArea,
+                             QHBoxLayout, QGridLayout, QFrame, QComboBox, QSizePolicy, QFormLayout, QTableWidget,
+                             QTableWidgetItem, QHeaderView, QStackedWidget, QCheckBox)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor, QFont, QDoubleValidator
+from PyQt5.QtWidgets import QGraphicsDropShadowEffect
+from banco_de_dados import EntradaProduto, Material, Estoque, session
+from telas.tela_base import TelaBaseComESC
 
-self.numero_nf_input.setStyleSheet("""
-    QLineEdit {
-        background-color: rgba(255, 255, 255, 0.8);
-        border: 2px solid #78909c;
-        border-radius: 6px;
-        padding: 10px;  /* Aumentar o padding */
-        font-size: 14px;  /* Aumentar o tamanho da fonte */
-        color: #37474f;
-    }
-    QLineEdit:focus {
-        border: 2px solid #546e7a;
-    }
-""")
 
-self.numero_sm_input.setStyleSheet("""
-    QLineEdit {
-        background-color: rgba(255, 255, 255, 0.8);
-        border: 2px solid #78909c;
-        border-radius: 6px;
-        padding: 10px;  /* Aumentar o padding */
-        font-size: 14px;  /* Aumentar o tamanho da fonte */
-        color: #37474f;
-    }
-    QLineEdit:focus {
-        border: 2px solid #546e7a;
-    }
-""")
+class TelaEntradaMaterial(TelaBaseComESC):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.materiais = []
+        self.init_ui()
+        self.showMaximized()
+
+    def init_ui(self):
+        self.setWindowTitle('Registro de Entrada de Material - Futurista')
+        self.resize(800, 600)
+        self.setMinimumSize(600, 400)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
+
+        # Título
+        title_label = QLabel("Registro de Entrada de Material")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #0D47A1; background-color: transparent;")
+        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        main_layout.addWidget(title_label)
+
+        # Frame para o formulário
+        form_frame = QFrame()
+        form_frame.setObjectName("formFrame")
+
+        form_layout = QFormLayout(form_frame)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+        form_layout.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+        form_layout.setHorizontalSpacing(20)
+        form_layout.setVerticalSpacing(15)
+
+        # Checkbox para Ordem de Serviço
+        self.os_checkbox = QCheckBox("Entrada com Ordem de Serviço")
+        self.os_checkbox.stateChanged.connect(self.toggle_os_input)
+        form_layout.addRow(self.os_checkbox)
+
+        # Input para Ordem de Serviço (inicialmente oculto)
+        self.os_input = QLineEdit()
+        self.os_input.setPlaceholderText("Digite o número da OS")
+        self.os_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.os_input.hide()
+        form_layout.addRow(QLabel('Ordem de Serviço (OS):'), self.os_input)
+
+        # Tipo de Documento (inicialmente visível)
+        self.tipo_documento_widget = QWidget()
+        tipo_documento_layout = QFormLayout(self.tipo_documento_widget)
+        self.tipo_documento_combo = QComboBox()
+        self.tipo_documento_combo.addItems(['Selecione o tipo', 'Nota Fiscal', 'Solicitação de Material'])
+        self.tipo_documento_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.tipo_documento_combo.currentIndexChanged.connect(self.on_tipo_documento_changed)
+        tipo_documento_layout.addRow(QLabel('Tipo de Documento:'), self.tipo_documento_combo)
+
+        self.stacked_widget = QStackedWidget()
+
+        # Página para Nota Fiscal
+        nf_page = QWidget()
+        nf_layout = QHBoxLayout(nf_page)
+        self.numero_nf_input = QLineEdit()
+        self.numero_nf_input.setPlaceholderText("Digite o número da NF")
+        self.numero_nf_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        nf_layout.addWidget(self.numero_nf_input)
+        self.stacked_widget.addWidget(nf_page)
+
+        # Página para Solicitação de Material
+        sm_page = QWidget()
+        sm_layout = QHBoxLayout(sm_page)
+        self.numero_sm_input = QLineEdit()
+        self.numero_sm_input.setPlaceholderText("Digite o número da SM")
+        self.numero_sm_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        sm_layout.addWidget(self.numero_sm_input)
+        self.stacked_widget.addWidget(sm_page)
+
+        tipo_documento_layout.addRow(QLabel('Número do Documento:'), self.stacked_widget)
+        form_layout.addRow(self.tipo_documento_widget)
+
+        self.codigo_input = QLineEdit()
+        self.codigo_input.setPlaceholderText("Digite o código do material")
+        self.codigo_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.codigo_input.textChanged.connect(self.buscar_material_por_codigo)
+        form_layout.addRow(QLabel('Código:'), self.codigo_input)
+
+        self.produto_combo = QComboBox()
+        self.produto_combo.setPlaceholderText('Selecione um produto')
+        self.produto_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        form_layout.addRow(QLabel('Produto:'), self.produto_combo)
+
+        self.quantidade_input = QLineEdit()
+        self.quantidade_input.setPlaceholderText("Quantidade")
+        self.quantidade_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.quantidade_input.setValidator(QDoubleValidator(0.0, 1000000.0, 2))
+        form_layout.addRow(QLabel('Quantidade:'), self.quantidade_input)
+
+        # Adicionar o combo box para a unidade de medida
+        self.unidade_medida_combo = QComboBox()
+        self.unidade_medida_combo.addItems(['Unidade', 'Metro', 'KG'])
+        self.unidade_medida_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        form_layout.addRow(QLabel('Unidade de Medida:'), self.unidade_medida_combo)
+
+        self.observacao_input = QLineEdit()
+        self.observacao_input.setPlaceholderText("Digite uma observação (opcional)")
+        self.observacao_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        form_layout.addRow(QLabel('Observação:'), self.observacao_input)
+
+        main_layout.addWidget(form_frame)
+
+        # Botão de adicionar material
+        add_button_layout = QHBoxLayout()
+        add_button_layout.addStretch()
+        self.add_material_button = QPushButton('Adicionar Material')
+        self.add_material_button.setFixedSize(200, 40)
+        self.add_material_button.clicked.connect(self.adicionar_material)
+        add_button_layout.addWidget(self.add_material_button)
+        add_button_layout.addStretch()
+        main_layout.addLayout(add_button_layout)
+
+        # Tabela de materiais adicionados
+        self.tabela_materiais = QTableWidget()
+        self.tabela_materiais.setColumnCount(4)
+        self.tabela_materiais.setHorizontalHeaderLabels(['Código', 'Produto', 'Quantidade', 'Ações'])
+        self.tabela_materiais.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tabela_materiais.verticalHeader().setVisible(False)
+        self.tabela_materiais.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tabela_materiais.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tabela_materiais.setSelectionBehavior(QTableWidget.SelectRows)
+        self.tabela_materiais.setAlternatingRowColors(True)
+        main_layout.addWidget(self.tabela_materiais)
+
+        # Botão de salvar
+        save_button_layout = QHBoxLayout()
+        save_button_layout.addStretch()
+        self.save_button = QPushButton('Salvar Entrada')
+        self.save_button.setFixedSize(200, 40)
+        self.save_button.clicked.connect(self.salvar_entrada)
+        save_button_layout.addWidget(self.save_button)
+        save_button_layout.addStretch()
+        main_layout.addLayout(save_button_layout)
+
+        self.aplicar_estilo()
+        self.carregar_produtos()
+
+    def toggle_os_input(self, state):
+        if state == Qt.Checked:
+            self.os_input.show()
+            self.tipo_documento_widget.hide()
+        else:
+            self.os_input.hide()
+            self.tipo_documento_widget.show()
+    def aplicar_estilo(self):
+        estilo = """
+            QWidget {
+                background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, 
+                                                  stop:0 #e0e0e0, stop:1 #bdbdbd);
+                color: #37474f;
+                font-family: 'Roboto', sans-serif;
+            }
+            QLabel {
+                background: none;
+                border: none;
+                padding: 0;
+                margin: 0;
+                font-size: 14px;
+                font-weight: bold;
+                color: #37474f;
+            }
+            QLineEdit, QComboBox {
+                background-color: rgba(255, 255, 255, 0.8);
+                border: 1px solid #78909c;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
+                color: #37474f;
+            }
+            QLineEdit:focus, QComboBox:focus {
+                border: 2px solid #546e7a;
+            }
+            QPushButton {
+                background-color: #546e7a;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #607d8b;
+            }
+            QTableWidget {
+                background-color: rgba(255, 255, 255, 0.8);
+                border: 1px solid #78909c;
+                border-radius: 6px;
+                color: #37474f;
+                font-size: 13px;
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #90a4ae;
+                color: white;
+            }
+            QFrame#formFrame {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QLineEdit[placeholder="Digite o número da OS"],
+            QLineEdit[placeholder="Digite uma observação (opcional)"] {
+                background-color: rgba(255, 255, 255, 0.8);
+                border: 1px solid #78909c;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
+                color: #37474f;
+            }
+        """
+        self.setStyleSheet(estilo)
+
+        # Adicionar sombra ao frame do formulário
+        form_frame = self.findChild(QFrame, "formFrame")
+        if form_frame:
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(15)
+            shadow.setColor(QColor(0, 0, 0, 40))
+            shadow.setOffset(0, 5)
+            form_frame.setGraphicsEffect(shadow)
+        # Adicionar sombra ao frame do formulário
+        form_frame = self.findChild(QFrame, "formFrame")
+        if form_frame:
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(15)
+            shadow.setColor(QColor(0, 0, 0, 40))
+            shadow.setOffset(0, 5)
+            form_frame.setGraphicsEffect(shadow)
+
+    def on_tipo_documento_changed(self, index):
+        self.stacked_widget.setCurrentIndex(index - 1)
+
+    def buscar_material_por_codigo(self):
+        codigo = self.codigo_input.text().strip()
+        if codigo:
+            material = session.query(Material).filter(Material.id == codigo).first()
+            if material:
+                index = self.produto_combo.findText(material.nome, Qt.MatchExactly)
+                if index >= 0:
+                    self.produto_combo.setCurrentIndex(index)
+                else:
+                    self.produto_combo.setCurrentIndex(-1)
+            else:
+                self.produto_combo.setCurrentIndex(-1)
+        else:
+            self.produto_combo.setCurrentIndex(-1)
+
+    def carregar_produtos(self):
+        materiais = session.query(Material).all()
+        self.produto_combo.clear()
+        for material in materiais:
+            self.produto_combo.addItem(material.nome, material.id)
+
+    def adicionar_material(self):
+        codigo = self.codigo_input.text().strip()
+        produto_id = self.produto_combo.currentData()
+        quantidade = self.quantidade_input.text().strip()
+        unidade_medida = self.unidade_medida_combo.currentText()
+
+        if not produto_id or not quantidade:
+            QMessageBox.warning(self, "Aviso", "Preencha todos os campos corretamente.")
+            return
+
+        produto = session.query(Material).filter_by(id=produto_id).first()
+        if not produto:
+            QMessageBox.warning(self, "Aviso", "Produto não encontrado.")
+            return
+
+        quantidade = float(quantidade)
+        material_existente = next(
+            (m for m in self.materiais if m['id'] == produto_id and m['unidade_medida'] == unidade_medida), None)
+
+        if material_existente:
+            material_existente['quantidade'] += quantidade
+        else:
+            self.materiais.append({
+                'codigo': produto.codigo,
+                'produto': produto.nome,
+                'quantidade': quantidade,
+                'unidade_medida': unidade_medida,
+                'id': produto_id
+            })
+
+        self.atualizar_tabela()
+        self.limpar_campos_material()
+
+    def atualizar_tabela(self):
+        self.tabela_materiais.setRowCount(0)
+        self.tabela_materiais.setColumnCount(5)  # Aumentar para 5 colunas
+        self.tabela_materiais.setHorizontalHeaderLabels(['Código', 'Produto', 'Quantidade', 'Unidade', 'Ações'])
+
+        for idx, material in enumerate(self.materiais):
+            self.tabela_materiais.insertRow(idx)
+            self.tabela_materiais.setItem(idx, 0, QTableWidgetItem(material['codigo']))
+            self.tabela_materiais.setItem(idx, 1, QTableWidgetItem(material['produto']))
+            self.tabela_materiais.setItem(idx, 2, QTableWidgetItem(str(material['quantidade'])))
+            self.tabela_materiais.setItem(idx, 3, QTableWidgetItem(material['unidade_medida']))
+            remover_button = QPushButton('Remover')
+            remover_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #d32f2f;
+                }
+            """)
+            remover_button.clicked.connect(lambda _, row=idx: self.remover_material(row))
+            self.tabela_materiais.setCellWidget(idx, 4, remover_button)
+
+    def remover_material(self, row):
+        if 0 <= row < len(self.materiais):
+            del self.materiais[row]
+            self.atualizar_tabela()
+
+    def limpar_campos_material(self):
+        self.codigo_input.clear()
+        self.produto_combo.setCurrentIndex(-1)
+        self.quantidade_input.clear()
+        self.unidade_medida_combo.setCurrentIndex(0)
+
+    def validar_entrada(self):
+        erros = []
+
+        # Validar OS ou tipo de documento
+        if self.os_checkbox.isChecked():
+            os_numero = self.os_input.text().strip()
+            if not os_numero:
+                erros.append("Preencha o número da Ordem de Serviço.")
+            elif not os_numero.isdigit():
+                erros.append("O número da OS deve conter apenas dígitos.")
+        else:
+            # Validar tipo de documento
+            tipo_documento = self.tipo_documento_combo.currentText()
+            if tipo_documento == "Selecione o tipo":
+                erros.append("Selecione um tipo de documento válido.")
+
+            # Validar número do documento
+            numero_documento = (self.numero_nf_input.text() if self.tipo_documento_combo.currentIndex() == 1 else
+                                self.numero_sm_input.text())
+            if not numero_documento:
+                erros.append("Preencha o número do documento.")
+            elif tipo_documento == "Nota Fiscal" and not numero_documento.isdigit():
+                erros.append("O número da Nota Fiscal deve conter apenas dígitos.")
+
+        # Validar OS (se preenchido)
+        os_numero = self.os_input.text().strip()
+        if os_numero and not os_numero.isdigit():
+            erros.append("O número da OS deve conter apenas dígitos.")
+
+        # Validar materiais
+        if not self.materiais:
+            erros.append("Adicione pelo menos um material antes de salvar.")
+        else:
+            for material in self.materiais:
+                if material['quantidade'] <= 0:
+                    erros.append(f"A quantidade para o material '{material['produto']}' deve ser maior que zero.")
+
+        # Validar quantidade total
+        quantidade_total = sum(material['quantidade'] for material in self.materiais)
+        if quantidade_total > 1000000:  # Exemplo de limite máximo
+            erros.append("A quantidade total de materiais excede o limite permitido.")
+
+        return erros
+
+    def salvar_entrada(self):
+        erros = self.validar_entrada()
+        if erros:
+            erro_msg = "\n".join(erros)
+            QMessageBox.warning(self, "Aviso", f"Corrija os seguintes erros:\n\n{erro_msg}")
+            return
+
+        try:
+            for material in self.materiais:
+                produto = session.query(Material).get(material['id'])
+                if not produto:
+                    raise ValueError(f"Produto com ID {material['id']} não encontrado no banco de dados.")
+
+                if material['quantidade'] > 10000:
+                    raise ValueError(
+                        f"A quantidade para '{produto.nome}' parece ser muito alta. Verifique se está correta.")
+
+                entrada = EntradaProduto(
+                    tipo_documento="Ordem de Serviço" if self.os_checkbox.isChecked() else self.tipo_documento_combo.currentText(),
+                    numero_documento=self.os_input.text().strip() if self.os_checkbox.isChecked() else
+                        (self.numero_nf_input.text() if self.tipo_documento_combo.currentIndex() == 1 else self.numero_sm_input.text()),
+                    ordem_servico=self.os_input.text().strip() if self.os_checkbox.isChecked() else None,
+                    observacao=self.observacao_input.text().strip() or None,
+                    data_entrada=datetime.now(),
+                    produto_id=material['id'],
+                    quantidade=material['quantidade'],
+                    unidade_medida=material['unidade_medida']
+                )
+                session.add(entrada)
+
+                # Atualizar o estoque
+                estoque = session.query(Estoque).filter_by(material_id=material['id']).first()
+                if estoque:
+                    nova_quantidade = estoque.quantidade + material['quantidade']
+                    if nova_quantidade > 1000000:
+                        raise ValueError(
+                            f"A nova quantidade de estoque para '{produto.nome}' excede o limite permitido.")
+                    estoque.quantidade = nova_quantidade
+                else:
+                    novo_estoque = Estoque(
+                        material_id=material['id'],
+                        quantidade=material['quantidade'],
+                        valor_minimo=0,
+                        status='Normal',
+                        unidade_medida=material['unidade_medida']  # Adicionar a unidade de medida
+                    )
+                    session.add(novo_estoque)
+
+            session.commit()
+            QMessageBox.information(self, "Sucesso", "Entrada registrada com sucesso!")
+            self.limpar_todos_campos()
+        except Exception as e:
+            session.rollback()
+            QMessageBox.critical(self, "Erro", f"Erro ao salvar entrada: {str(e)}")
+            print(f"Erro detalhado: {e}")
+            import traceback
+            print(traceback.format_exc())
+
+    def limpar_todos_campos(self):
+        self.limpar_campos_material()
+        self.materiais.clear()
+        self.atualizar_tabela()
+        self.os_checkbox.setChecked(False)
+        self.os_input.clear()
+        self.tipo_documento_combo.setCurrentIndex(0)
+        self.numero_nf_input.clear()
+        self.numero_sm_input.clear()
+        self.observacao_input.clear()
