@@ -1,0 +1,297 @@
+import logging
+from collections import defaultdict
+
+import bcrypt
+from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, \
+    QMessageBox, QFrame, QLineEdit, QDialog, QListWidget, QListWidgetItem, QHeaderView
+from PyQt5.QtCore import Qt
+from banco_de_dados import session, Requisicao, Devolucao, Usuario
+from sqlalchemy.exc import SQLAlchemyError
+from sessao_usuario import SessaoUsuario
+
+class TelaFecharOS(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Fechar Ordem de Serviço')
+        self.os_selecionada = None
+        self.init_ui()
+        self.load_open_os()
+        self.showMaximized()
+
+    def init_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Cabeçalho
+        header_frame = QFrame(self)
+        header_frame.setStyleSheet("background-color: #2c3e50; color: white; border-radius: 10px;")
+        header_layout = QHBoxLayout(header_frame)
+
+        logo_label = QLabel("🔧")
+        logo_label.setStyleSheet("font-size: 40px;")
+        header_layout.addWidget(logo_label)
+
+        title_label = QLabel("Fechar Ordem de Serviço")
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold;")
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+
+        main_layout.addWidget(header_frame)
+
+        # Área de Resumo
+        summary_frame = QFrame(self)
+        summary_frame.setStyleSheet("background-color: #ecf0f1; border-radius: 10px;")
+        summary_layout = QHBoxLayout(summary_frame)
+
+        self.total_os_label = QLabel("Total de OS Abertas: 0")
+        summary_layout.addWidget(self.total_os_label)
+
+        summary_layout.addStretch()
+
+        main_layout.addWidget(summary_frame)
+
+        # Barra de Pesquisa
+        search_layout = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Pesquisar por OS...")
+        self.search_input.setStyleSheet("padding: 8px; border: 1px solid #bdc3c7; border-radius: 5px;")
+        search_layout.addWidget(self.search_input)
+
+        search_button = QPushButton("Buscar")
+        search_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                padding: 8px 15px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        search_button.clicked.connect(self.search_items)
+        search_layout.addWidget(search_button)
+
+        main_layout.addLayout(search_layout)
+
+        # Lista de OS
+        self.os_list = QListWidget()
+        self.os_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #bdc3c7;
+                border-radius: 5px;
+                background-color: white;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+        """)
+        self.os_list.itemClicked.connect(self.show_os_details)
+        main_layout.addWidget(self.os_list)
+
+        # Detalhes da OS
+        # Detalhes da OS
+        self.details_frame = QFrame()
+        self.details_frame.setStyleSheet("background-color: #ecf0f1; border-radius: 10px; padding: 10px;")
+        self.details_frame.setVisible(False)
+        details_layout = QVBoxLayout(self.details_frame)
+
+        self.details_label = QLabel("Detalhes da OS:")
+        details_layout.addWidget(self.details_label)
+
+        self.materials_table = QTableWidget()
+        self.materials_table.setColumnCount(4)
+        self.materials_table.setHorizontalHeaderLabels(['Material', 'Qtd Utilizada', 'Qtd Devolvida', 'Status'])
+        self.materials_table.setStyleSheet("""
+                   QTableWidget {
+                       border: 1px solid #bdc3c7;
+                       border-radius: 5px;
+                       background-color: white;
+                   }
+                   QHeaderView::section {
+                       background-color: #34495e;
+                       color: white;
+                       padding: 8px;
+                       border: 1px solid #2c3e50;
+                       font-weight: bold;
+                   }
+               """)
+        # Configurar o cabeçalho da tabela
+        header = self.materials_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        header.setStretchLastSection(True)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Ajustar a altura do cabeçalho
+        font_metrics = QtGui.QFontMetrics(header.font())
+        header_height = font_metrics.height() + 50  # Adiciona 20 pixels de espaço extra
+        header.setFixedHeight(header_height)
+
+        details_layout.addWidget(self.materials_table)
+
+        main_layout.addWidget(self.details_frame)
+
+        # Botão para fechar OS
+        self.btn_fechar_os = QPushButton("Fechar OS Selecionada")
+        self.btn_fechar_os.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+        self.btn_fechar_os.clicked.connect(self.fechar_os)
+        self.btn_fechar_os.setVisible(False)
+        main_layout.addWidget(self.btn_fechar_os, alignment=Qt.AlignCenter)
+
+        # Rodapé
+        footer_label = QLabel("© 2024 Sua Empresa. Todos os direitos reservados.")
+        footer_label.setAlignment(Qt.AlignCenter)
+        footer_label.setStyleSheet("color: #7f8c8d;")
+        main_layout.addWidget(footer_label)
+
+    def load_open_os(self):
+        try:
+            open_os = session.query(Requisicao.ordem_servico, Requisicao.nome_tecnico, Requisicao.data_requisicao)\
+                .filter(Requisicao.status != 'Fechada')\
+                .group_by(Requisicao.ordem_servico)\
+                .all()
+
+            self.os_list.clear()
+            for os, tecnico, data in open_os:
+                item = QListWidgetItem(f"OS: {os} - Técnico: {tecnico} - Data: {data.strftime('%Y-%m-%d %H:%M:%S')}")
+                item.setData(Qt.UserRole, os)
+                self.os_list.addItem(item)
+
+            self.total_os_label.setText(f"Total de OS Abertas: {len(open_os)}")
+
+        except SQLAlchemyError as e:
+            QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao carregar as OS abertas: {str(e)}')
+
+    def show_os_details(self, item):
+        os_number = item.data(Qt.UserRole)
+        self.os_selecionada = os_number
+        try:
+            requisicoes = session.query(Requisicao).filter_by(ordem_servico=os_number).all()
+
+            self.materials_table.setRowCount(len(requisicoes))
+            for row, req in enumerate(requisicoes):
+                devolucao = session.query(Devolucao).filter_by(
+                    ordem_servico=req.ordem_servico,
+                    produto_id=req.produto_id
+                ).first()
+
+                quantidade_retornada = devolucao.quantidade if devolucao else 0
+
+                self.materials_table.setItem(row, 0, QTableWidgetItem(req.produto_nome))
+                self.materials_table.setItem(row, 1, QTableWidgetItem(str(req.quantidade)))
+                self.materials_table.setItem(row, 2, QTableWidgetItem(str(quantidade_retornada)))
+                self.materials_table.setItem(row, 3, QTableWidgetItem(req.status))
+
+            # Ajustar as colunas ao conteúdo
+            self.materials_table.resizeColumnsToContents()
+
+            self.details_frame.setVisible(True)
+            self.btn_fechar_os.setVisible(True)
+            self.details_label.setText(f"Detalhes da OS: {os_number}")
+
+        except SQLAlchemyError as e:
+            QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao carregar os detalhes da OS: {str(e)}')
+    def fechar_os(self):
+        if not self.os_selecionada:
+            QMessageBox.warning(self, 'Aviso', 'Por favor, selecione uma OS para fechar.')
+            return
+
+        reply = QMessageBox.question(self, 'Confirmar', f'Deseja realmente fechar a OS {self.os_selecionada}?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            senha, ok = QtWidgets.QInputDialog.getText(self, 'Senha', 'Digite a senha para confirmar:',
+                                                       QtWidgets.QLineEdit.Password)
+            if ok:
+                if self.verificar_senha(senha):
+                    try:
+                        usuario_atual = SessaoUsuario.get_usuario()
+                        logging.info(f"Usuário fechando a OS: {usuario_atual}")
+
+                        # Atualizar todas as requisições associadas a esta OS
+                        requisicoes = session.query(Requisicao).filter_by(ordem_servico=self.os_selecionada).all()
+                        for req in requisicoes:
+                            req.status = 'Fechada'  # Atualiza o status da requisição para 'Fechada'
+
+                            # Verifica se já existe uma devolução, se não, cria uma nova
+                            devolucao = session.query(Devolucao).filter_by(
+                                ordem_servico=req.ordem_servico,
+                                produto_id=req.produto_id
+                            ).first()
+
+                            if not devolucao:
+                                devolucao = Devolucao(
+                                    ordem_servico=req.ordem_servico,
+                                    produto_id=req.produto_id,
+                                    produto_nome=req.produto_nome,
+                                    quantidade=req.quantidade,
+                                    motivo_retorno="OS Fechada",
+                                    usuario_fechou=usuario_atual
+                                )
+                                session.add(devolucao)
+                            else:
+                                # Se já existe uma devolução, atualiza a quantidade se necessário
+                                if devolucao.quantidade < req.quantidade:
+                                    devolucao.quantidade = req.quantidade
+                                    devolucao.motivo_retorno += " - OS Fechada"
+                                devolucao.usuario_fechou = usuario_atual
+
+                        session.commit()
+                        QMessageBox.information(self, 'Sucesso',
+                                                f'OS {self.os_selecionada} fechada com sucesso pelo usuário {usuario_atual}!')
+                        self.load_open_os()  # Recarregar a lista de OS abertas
+                        self.details_frame.setVisible(False)
+                        self.btn_fechar_os.setVisible(False)
+                        self.os_selecionada = None
+                        self.notificar_atualizacao()  # Notificar outras telas sobre a atualização
+                    except SQLAlchemyError as e:
+                        session.rollback()
+                        QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao fechar a OS: {str(e)}')
+                else:
+                    QMessageBox.warning(self, 'Senha incorreta',
+                                        'A senha fornecida está incorreta. A OS não foi fechada.')
+
+    def verificar_senha(self, senha):
+        # Assumindo que você tem um usuário logado no momento
+        usuario_atual = SessaoUsuario.get_usuario()
+        if usuario_atual:
+            # Busque o usuário no banco de dados pelo nome
+            usuario_db = session.query(Usuario).filter_by(nome=usuario_atual).first()
+            if usuario_db:
+                # Verifique a senha
+                return bcrypt.checkpw(senha.encode('utf-8'), usuario_db.senha.encode('utf-8'))
+        return False
+
+    def notificar_atualizacao(self):
+        # Exemplo básico de notificação de atualização
+        print("Notificação de atualização: A lista de OS foi atualizada.")
+
+    def search_items(self):
+        search_text = self.search_input.text().lower()
+        for i in range(self.os_list.count()):
+            item = self.os_list.item(i)
+            if search_text in item.text().lower():
+                item.setHidden(False)
+            else:
+                item.setHidden(True)
