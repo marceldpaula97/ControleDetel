@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import defaultdict
 
 import bcrypt
@@ -19,10 +20,18 @@ class TelaFecharOS(QDialog):
         self.load_open_os()
         self.showMaximized()
 
+        # Conectar o evento de redimensionamento
+        self.resizeEvent = self.on_resize
+
+    def on_resize(self, event):
+        self.adjust_header_height()
+        super().resizeEvent(event)
+
     def init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 20, 20, 20)
+        self.resizeEvent = lambda event: self.adjust_header_height()
 
         # Cabeçalho
         header_frame = QFrame(self)
@@ -111,29 +120,44 @@ class TelaFecharOS(QDialog):
         self.materials_table.setColumnCount(4)
         self.materials_table.setHorizontalHeaderLabels(['Material', 'Qtd Utilizada', 'Qtd Devolvida', 'Status'])
         self.materials_table.setStyleSheet("""
-                   QTableWidget {
-                       border: 1px solid #bdc3c7;
-                       border-radius: 5px;
-                       background-color: white;
-                   }
-                   QHeaderView::section {
-                       background-color: #34495e;
-                       color: white;
-                       padding: 8px;
-                       border: 1px solid #2c3e50;
-                       font-weight: bold;
-                   }
-               """)
+            QTableWidget {
+                border: 1px solid #bdc3c7;
+                border-radius: 5px;
+                background-color: white;
+            }
+            QHeaderView::section {
+                background-color: #34495e;
+                color: white;
+                padding: 10px;
+                border: 1px solid #2c3e50;
+                font-weight: bold;
+                font-size: 14px;  /* Aumentado o tamanho da fonte */
+            }
+        """)
+
         # Configurar o cabeçalho da tabela
         header = self.materials_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
         header.setStretchLastSection(True)
-        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setDefaultAlignment(Qt.AlignCenter)
+        header.setDefaultSectionSize(250)  # Aumentado para dar mais espaço
+
+        # Configurar os itens do cabeçalho
+        for column, label in enumerate(['Material', 'Qtd Utilizada', 'Qtd Devolvida', 'Status']):
+            item = QTableWidgetItem(label)
+            item.setTextAlignment(Qt.AlignCenter)
+            item.setFlags(item.flags() | Qt.TextWordWrap)
+            self.materials_table.setHorizontalHeaderItem(column, item)
+
+        # Ajustar a altura do cabeçalho
+        self.adjust_header_height()
 
         # Ajustar a altura do cabeçalho
         font_metrics = QtGui.QFontMetrics(header.font())
-        header_height = font_metrics.height() + 50  # Adiciona 20 pixels de espaço extra
-        header.setFixedHeight(header_height)
+        text_height = font_metrics.height()
+        screen_height = QtWidgets.QApplication.desktop().screenGeometry().height()
+        header_height = max(text_height * 2, min(text_height * 3, screen_height * 0.05))
+        header.setFixedHeight(int(header_height))
 
         details_layout.addWidget(self.materials_table)
 
@@ -164,6 +188,40 @@ class TelaFecharOS(QDialog):
         footer_label.setAlignment(Qt.AlignCenter)
         footer_label.setStyleSheet("color: #7f8c8d;")
         main_layout.addWidget(footer_label)
+
+    def adjust_header_height(self):
+        header = self.materials_table.horizontalHeader()
+
+        # Obter as métricas da fonte
+        font_metrics = QtGui.QFontMetrics(header.font())
+
+        # Calcular a altura necessária para cada coluna
+        max_height = 0
+        for column in range(self.materials_table.columnCount()):
+            content = self.materials_table.horizontalHeaderItem(column).text()
+            width = header.sectionSize(column)
+            rect = font_metrics.boundingRect(
+                0, 0, width, 1000,
+                Qt.AlignCenter | Qt.TextWordWrap,
+                content
+            )
+            max_height = max(max_height, rect.height())
+
+        # Adicionar padding e garantir uma altura mínima
+        padding = 30  # Aumentado o padding
+        min_height = font_metrics.height() * 3  # Garante pelo menos três linhas de texto
+        header_height = max(max_height + padding, min_height)
+
+        # Limitar a altura máxima a uma porcentagem da altura da tela
+        screen_height = QtWidgets.QApplication.desktop().screenGeometry().height()
+        max_allowed_height = int(screen_height * 0.2)  # 20% da altura da tela
+        header_height = min(header_height, max_allowed_height)
+
+        # Definir a altura do cabeçalho
+        header.setFixedHeight(int(header_height))
+
+        # Forçar a atualização visual
+        self.materials_table.update()
 
     def load_open_os(self):
         try:
