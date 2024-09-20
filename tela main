@@ -1,0 +1,524 @@
+import logging
+import sys
+import traceback
+
+from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QColor, QIcon, QFont
+from PyQt5.QtWidgets import QMessageBox, QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QApplication, QDialog
+
+from sessao_usuario import SessaoUsuario
+from telas.tela_acerto_estoque import TelaAcertoEstoque
+from telas.tela_credito import TelaCreditos
+from telas.tela_dados_retiradas import DadosIniciaisForm
+from telas.tela_fechar_os import TelaFecharOS
+from telas.tela_login import TelaLogin
+from telas.tela_cadastro import TelaCadastro
+from telas.tela_mostrar_usuario import TelaMostrarUsuarios
+from telas.tela_registro_fornecedor import TelaRegistroFornecedor
+from telas.tela_registro_material import TelaRegistroMaterial
+from telas.tela_mostrar_material_registrado import TelaMostrarMateriais
+from imagens.imagem import ImageWidget
+from telas.tela_registro_tecnico import TelaRegistroTecnico
+from telas.tela_retorno_material import TelaRetornoMaterial
+from telas.tela_mostrar_material_retirado import TelaMateriaisRetirados
+from telas.tela_estoque_total import TelaEstoque
+from telas.tela_procurar_pdf import TelaProcurarPDF
+from telas.tela_mostrar_tecnico import TelaMostrarTecnicos
+from telas.tela_mostrar_fornecedor import TelaFornecedores
+from telas.tela_entrada_material import TelaEntradaMaterial
+from telas.tela_relatorio import TelaMovimentacoes
+
+
+
+
+
+class MainApp(QtWidgets.QMainWindow):
+    def __init__(self, authenticated_user):
+        super().__init__()
+        self.authenticated_user = authenticated_user
+        self.telas_abertas = []
+        self.setWindowTitle('Sistema de Gestão de Materiais')
+        self.setGeometry(100, 100, 1200, 800)
+        self.init_ui()
+        self.init_telas()
+        self.update_welcome_message()
+        self.update_menu_permissions()  # Adicione esta linha
+        self.tela_acerto_estoque = None
+
+    def exception_hook(exctype, value, traceback):
+        logging.error(f"Uncaught exception", exc_info=(exctype, value, traceback))
+        sys.__excepthook__(exctype, value, traceback)
+
+    sys.excepthook = exception_hook
+
+    def init_ui(self):
+        # Definir a fonte Roboto como padrão
+        QApplication.setFont(QFont("Roboto", 12))
+
+        # Estilo futurista com um fundo mais suave
+        self.setStyleSheet("""
+            QMainWindow {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #e0e0e0, stop:1 #f5f5f5);
+            }
+            QMenuBar {
+                background-color: rgba(255, 255, 255, 0.8);
+                color: #333333;
+                font-size: 14px;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            }
+            QMenuBar::item:selected {
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+            QMenu {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #cccccc;
+            }
+            QMenu::item:selected {
+                background-color: #f5f5f5;
+            }
+            QPushButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                padding: 10px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3a80d2;
+            }
+            QLabel {
+                color: #333333;
+            }
+        """)
+
+        # Widget central
+        central_widget = QtWidgets.QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QtWidgets.QVBoxLayout(central_widget)
+
+        # Barra de menu
+        self.create_menu_bar()
+
+        # Área de conteúdo principal
+        self.content_stack = QtWidgets.QStackedWidget()
+        main_layout.addWidget(self.content_stack)
+
+        # Página inicial
+        welcome_widget = QtWidgets.QWidget()
+        welcome_layout = QtWidgets.QVBoxLayout(welcome_widget)
+
+        # Logo com efeito de sombra
+        logo_label = QtWidgets.QLabel()
+        pixmap = QtGui.QPixmap('imagens/logo-pjerj-preto.png')
+        logo_label.setPixmap(pixmap.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        logo_label.setAlignment(Qt.AlignCenter)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 0)
+        logo_label.setGraphicsEffect(shadow)
+        welcome_layout.addWidget(logo_label)
+
+        # Mensagem de boas-vindas
+        user_full_name = self.get_user_full_name(self.authenticated_user)
+        self.welcome_message = QtWidgets.QLabel(f"Bem-vindo, {user_full_name}!")
+        self.welcome_message.setAlignment(Qt.AlignCenter)
+        self.welcome_message.setStyleSheet("font-size: 32px; color: #333333; margin-top: 20px;")
+        welcome_layout.addWidget(self.welcome_message)
+
+        # Animação de fade-in para a mensagem de boas-vindas
+        self.welcome_message.setGraphicsEffect(QGraphicsOpacityEffect())
+        self.fade_in_animation = QPropertyAnimation(self.welcome_message.graphicsEffect(), b"opacity")
+        self.fade_in_animation.setDuration(1000)
+        self.fade_in_animation.setStartValue(0)
+        self.fade_in_animation.setEndValue(1)
+        self.fade_in_animation.setEasingCurve(QEasingCurve.InOutQuad)
+        self.fade_in_animation.start()
+
+        # Informações de versão centralizadas
+        version_info = QtWidgets.QLabel("Versão Alpha 0.4")
+        version_info.setAlignment(Qt.AlignCenter)
+        version_info.setStyleSheet("font-size: 12px; font-weight: bold; color: #4a90e2;")
+        welcome_layout.addWidget(version_info)
+
+        # Espaço expansível para empurrar a equipe para o canto inferior direito
+        welcome_layout.addStretch()
+
+        # Container inferior direito para a equipe de desenvolvimento
+        bottom_right_layout = QtWidgets.QHBoxLayout()
+        bottom_right_layout.addStretch()  # Espaço expansível à esquerda
+
+        dev_info_widget = QtWidgets.QWidget()
+        dev_info_layout = QtWidgets.QVBoxLayout(dev_info_widget)
+
+#
+
+        dev_info_widget.setLayout(dev_info_layout)
+        bottom_right_layout.addWidget(dev_info_widget)
+
+        # Adiciona o layout inferior direito ao layout principal
+        welcome_layout.addLayout(bottom_right_layout)
+
+        self.content_stack.addWidget(welcome_widget)
+
+    def init_telas(self):
+        self.tela_cadastro = None
+        self.tela_mostrar_usuarios = None
+        self.tela_registro_material = None
+        self.tela_mostrar_materiais = None
+        self.tela_registro_fornecedor = None
+        self.tela_registro_tecnico = None
+        self.tela_mostrar_tecnico = None
+        self.tela_dados_iniciais = None
+        self.tela_retorno_material = None
+        self.tela_materiais_retirados = None
+        self.tela_estoque = None
+        self.tela_procurar_pdfs = None
+        self.tela_mostrar_fornecedores = None
+        self.tela_entrada_material = None
+        self.tela_movimentacoes = None
+
+    def update_welcome_message(self):
+        user_full_name = self.get_user_full_name(self.authenticated_user)
+        self.welcome_message.setText(f"Bem-vindo, {user_full_name}!")
+
+        # Animação de fade-in para a mensagem de boas-vindas
+        self.welcome_message.setGraphicsEffect(QGraphicsOpacityEffect())
+        self.fade_in_animation = QPropertyAnimation(self.welcome_message.graphicsEffect(), b"opacity")
+        self.fade_in_animation.setDuration(1000)
+        self.fade_in_animation.setStartValue(0)
+        self.fade_in_animation.setEndValue(1)
+        self.fade_in_animation.setEasingCurve(QEasingCurve.InOutQuad)
+        self.fade_in_animation.start()
+    def get_user_full_name(self, username):
+        # Obter o nome completo do usuário a partir da classe SessaoUsuario
+        user_full_name = SessaoUsuario.get_usuario()
+        return user_full_name
+
+    def create_menu_bar(self):
+        menubar = self.menuBar()
+
+        # Menus
+        usuario_menu = menubar.addMenu('Usuário')
+        material_menu = menubar.addMenu('Material')
+        fornecedor_menu = menubar.addMenu('Fornecedor')
+        tecnico_menu = menubar.addMenu('Técnico')
+        pdf_menu = menubar.addMenu('PDFs')
+        relatorio_menu = menubar.addMenu('Relatório')
+        os_menu = menubar.addMenu('Ordem de Serviço')
+
+        self.estoque_menu = menubar.addMenu('Estoque')
+        self.acerto_estoque_action = QtWidgets.QAction('Acerto de Estoque', self)
+        self.acerto_estoque_action.triggered.connect(self.abrir_acerto_estoque)
+        self.estoque_menu.addAction(self.acerto_estoque_action)
+
+        self.add_menu_action(menubar.addMenu('Sobre'), 'Créditos', self.abrir_creditos)
+
+        # Ações do menu Usuário
+        self.cadastro_action = QtWidgets.QAction('Cadastro', self)
+        self.cadastro_action.triggered.connect(self.abrir_cadastro)
+        usuario_menu.addAction(self.cadastro_action)
+
+        mostrar_usuarios_action = QtWidgets.QAction('Mostrar Usuários', self)
+        mostrar_usuarios_action.triggered.connect(self.abrir_mostrar_usuarios)
+
+        logout_action = QtWidgets.QAction('Logout', self)
+        logout_action.triggered.connect(self.logout)
+
+        #usuario_menu.addAction(cadastro_action)
+        usuario_menu.addAction(mostrar_usuarios_action)
+        usuario_menu.addSeparator()
+        usuario_menu.addAction(logout_action)
+
+        # Ações do menu Material
+        self.add_menu_action(material_menu, 'Registrar Material', self.registrar_material)
+        self.add_menu_action(material_menu, 'Entrada de Material', self.abrir_entrada_material)
+        self.add_menu_action(material_menu, 'Mostrar Materiais', self.abrir_mostrar_materiais)
+        self.add_menu_action(material_menu, 'Retirar Material', self.abrir_retirar_material)
+        self.add_menu_action(material_menu, 'Retornar Material', self.abrir_retorno_material)
+        self.add_menu_action(material_menu, 'Materiais Retirados', self.abrir_materiais_retirados)
+        self.add_menu_action(material_menu, 'Estoque Total', self.abrir_estoque)
+        self.add_menu_action(os_menu, 'Fechar OS', self.abrir_tela_fechar_os)
+        #self.add_menu_action(estoque_menu,'Acerto de Estoque', self.abrir_acerto_estoque)
+
+        # Ações do menu Fornecedor
+        self.add_menu_action(fornecedor_menu, 'Cadastro de Fornecedor', self.abrir_registro_fornecedor)
+        self.add_menu_action(fornecedor_menu, 'Mostrar Fornecedores', self.abrir_mostrar_fornecedores)
+
+        # Ações do menu Técnico
+        self.add_menu_action(tecnico_menu, 'Cadastro de Técnico', self.abrir_registro_tecnico)
+        self.add_menu_action(tecnico_menu, 'Mostrar Técnico', self.abrir_mostrar_tecnico)
+
+        # Ações do menu PDFs
+        self.add_menu_action(pdf_menu, 'Procurar PDFs', self.abrir_procurar_pdfs)
+
+        # Ações do menu Relatório
+        self.add_menu_action(relatorio_menu, 'Gerar Relatório', self.abrir_relatorio)
+
+    def abrir_acerto_estoque(self):
+        if SessaoUsuario.is_supervisor():
+            self.tela_acerto_estoque = TelaAcertoEstoque()
+            self.tela_acerto_estoque.show()
+        else:
+            QtWidgets.QMessageBox.warning(self, "Acesso Negado", "Apenas supervisores podem acessar a tela de acerto de estoque.")
+
+    def update_menu_permissions(self):
+        is_admin = SessaoUsuario.is_admin()
+        is_supervisor = SessaoUsuario.is_supervisor()
+
+        # Atualiza permissões para ações específicas
+        self.cadastro_action.setEnabled(is_admin)
+
+        # Mostra ou oculta o menu de Estoque baseado no status de supervisor
+        self.estoque_menu.menuAction().setVisible(is_supervisor)
+
+        logging.debug(f"Permissões do menu atualizadas. Usuário é admin: {is_admin}, supervisor: {is_supervisor}")
+
+    def abrir_creditos(self):
+        self.tela_creditos = TelaCreditos()
+        self.tela_creditos.show()
+
+    def add_menu_action(self, menu, label, slot):
+        action = QtWidgets.QAction(label, self)
+        action.triggered.connect(slot)
+        menu.addAction(action)
+
+    def abrir_cadastro(self):
+        if SessaoUsuario.is_admin():
+            self.tela_cadastro = TelaCadastro()
+            self.tela_cadastro.show()
+        else:
+            QtWidgets.QMessageBox.warning(self, 'Acesso Negado',
+                                          'Apenas administradores podem cadastrar novos usuários.')
+
+    def abrir_mostrar_usuarios(self):
+        self.tela_mostrar_usuarios = TelaMostrarUsuarios()
+        self.tela_mostrar_usuarios.show()
+
+    def registrar_material(self):
+        try:
+            self.tela_registro_material = TelaRegistroMaterial()
+            self.tela_registro_material.show()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao abrir a tela de registro de material: {e}')
+
+    def abrir_mostrar_materiais(self):
+        self.tela_mostrar_materiais = TelaMostrarMateriais()
+        self.tela_mostrar_materiais.show()
+
+    def abrir_registro_fornecedor(self):
+        self.tela_registro_fornecedor = TelaRegistroFornecedor()
+        self.tela_registro_fornecedor.show()
+
+    def abrir_registro_tecnico(self):
+        self.tela_registro_tecnico = TelaRegistroTecnico()
+        self.tela_registro_tecnico.show()
+
+    def abrir_mostrar_tecnico(self):
+        self.tela_mostrar_tecnico = TelaMostrarTecnicos()
+        self.tela_mostrar_tecnico.show()
+
+    def abrir_retirar_material(self):
+        try:
+            self.tela_dados_iniciais = DadosIniciaisForm(self)
+            self.telas_abertas.append(self.tela_dados_iniciais)
+            self.tela_dados_iniciais.show()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao abrir a tela de dados iniciais: {e}')
+
+    def abrir_retorno_material(self):
+        try:
+            self.tela_retorno_material = TelaRetornoMaterial()
+            self.tela_retorno_material.show()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao abrir a tela de retorno de material: {e}')
+
+    def abrir_materiais_retirados(self):
+        self.tela_materiais_retirados = TelaMateriaisRetirados()
+        self.tela_materiais_retirados.show()
+
+    def atualizar_dados(self):
+        # Atualiza quaisquer dados ou elementos da UI relevantes
+        if hasattr(self, 'tela_materiais_retirados') and self.tela_materiais_retirados is not None:
+            try:
+                self.tela_materiais_retirados.atualizar_tabela()
+            except Exception as e:
+                logging.error(f"Erro ao atualizar tabela de materiais retirados: {str(e)}")
+
+        if hasattr(self, 'tela_estoque') and self.tela_estoque is not None:
+            try:
+                self.tela_estoque.atualizar_tabela()
+            except Exception as e:
+                logging.error(f"Erro ao atualizar tabela de estoque: {str(e)}")
+
+    def abrir_tela_fechar_os(self):
+        self.tela_fechar_os = TelaFecharOS()
+        self.tela_fechar_os.finished.connect(self.atualizar_dados)  # Connect to the 'finished' signal
+        self.tela_fechar_os.exec_()  # Or self.tela_fechar_os.exec() if using PyQt5
+
+    def abrir_estoque(self):
+        try:
+            self.tela_estoque = TelaEstoque()
+            self.tela_estoque.show()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Não foi possível abrir a tela de estoque: {e}')
+
+    def abrir_procurar_pdfs(self):
+        self.tela_procurar_pdfs = TelaProcurarPDF()
+        self.tela_procurar_pdfs.show()
+
+    def abrir_mostrar_fornecedores(self):
+        self.tela_mostrar_fornecedores = TelaFornecedores()
+        self.tela_mostrar_fornecedores.show()
+
+    def abrir_relatorio(self):
+        try:
+            self.tela_relatorio = TelaMovimentacoes()
+            self.tela_relatorio.show()
+        except Exception as e:
+            error_message = f"Erro ao abrir a tela de relatório: {str(e)}"
+            logging.error(error_message)
+            logging.error(traceback.format_exc())
+            QMessageBox.critical(self, "Erro", error_message)
+            print(f"Erro detalhado: {traceback.format_exc()}")  # Adicionado para depuração
+
+    def abrir_entrada_material(self):
+        try:
+            dialog = TelaEntradaMaterial(self)
+            if dialog.tipo_documento is not None:  # Só exibe se um documento foi selecionado
+                dialog.exec_()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao abrir a tela de entrada de material: {e}')
+
+    def abrir_movimentacoes(self):
+        try:
+            self.tela_movimentacoes = TelaMovimentacoes()
+            self.tela_movimentacoes.show()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Erro', f'Ocorreu um erro ao abrir a tela de movimentações: {e}')
+
+    def logout(self):
+        # Definir o estilo para a caixa de mensagem
+        message_box_style = """
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: black;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4a90e2;
+                    color: white;
+                    border: none;
+                    padding: 5px 15px;
+                    border-radius: 3px;
+                    font-weight: bold;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #3a80d2;
+                }
+                """
+
+        # Criar e configurar a caixa de mensagem
+        reply = QtWidgets.QMessageBox()
+        reply.setWindowTitle('Logout')
+        reply.setText('Tem certeza de que deseja fazer logout?')
+        reply.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        reply.setDefaultButton(QtWidgets.QMessageBox.No)
+        reply.setStyleSheet(message_box_style)
+
+        # Executar a caixa de diálogo
+        result = reply.exec_()
+
+        if result == QtWidgets.QMessageBox.Yes:
+            self.hide()
+            self.tela_cadastro = None
+            self.tela_mostrar_usuarios = None
+            self.tela_registro_material = None
+            self.tela_mostrar_materiais = None
+            self.tela_registro_fornecedor = None
+            self.tela_registro_tecnico = None
+            self.tela_mostrar_tecnico = None
+            self.tela_dados_iniciais = None
+            self.tela_retorno_material = None
+            self.tela_materiais_retirados = None
+            self.tela_estoque = None
+            self.tela_procurar_pdfs = None
+            self.tela_mostrar_fornecedores = None
+            self.tela_entrada_material = None
+            self.tela_movimentacoes = None
+
+            self.tela_login = TelaLogin()
+            if self.tela_login.exec_():
+                self.authenticated_user = self.tela_login.username_line_edit.text()
+                self.update_welcome_message()
+                self.update_menu_permissions()  # Adicione esta linha
+                self.show()
+            else:
+                app.quit()
+
+    def closeEvent(self, event):
+        reply = QMessageBox.question(self, 'Fechar',
+                                     'Tem certeza de que deseja fechar o programa?',
+                                     QMessageBox.Yes | QMessageBox.No,
+                                     QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            # Fechar todas as telas abertas
+            for tela in list(self.telas_abertas):  # Usando uma cópia da lista para evitar problemas durante a iteração
+                try:
+                    logging.info(f"Tentando fechar: {type(tela).__name__}")
+                    tela.close()
+                    if tela in self.telas_abertas:
+                        self.telas_abertas.remove(tela)
+                    logging.info(f"Tela fechada e removida: {type(tela).__name__}")
+                except Exception as e:
+                    logging.error(f"Erro ao fechar tela {type(tela).__name__}: {str(e)}")
+
+            # Fechar outras telas específicas
+            telas_especificas = [
+                'tela_cadastro', 'tela_mostrar_usuarios', 'tela_registro_material',
+                'tela_mostrar_materiais', 'tela_registro_fornecedor', 'tela_registro_tecnico',
+                'tela_mostrar_tecnico', 'tela_retorno_material',
+                'tela_materiais_retirados', 'tela_estoque', 'tela_procurar_pdfs',
+                'tela_mostrar_fornecedores', 'tela_entrada_material', 'tela_movimentacoes', 'tela_fechar_os','tela_acerto_estoque'
+            ]
+
+            for tela_name in telas_especificas:
+                tela = getattr(self, tela_name, None)
+                if tela and isinstance(tela, QtWidgets.QWidget) and tela.isVisible():
+                    try:
+                        logging.info(f"Tentando fechar tela específica: {tela_name}")
+                        tela.close()
+                        logging.info(f"Tela específica fechada: {tela_name}")
+                    except Exception as e:
+                        logging.error(f"Erro ao fechar {tela_name}: {str(e)}")
+
+            logging.info("Todas as telas foram processadas para fechamento")
+            event.accept()
+        else:
+            event.ignore()
+
+    def show_full_screen_excluding_taskbar(self):
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_rect = screen.availableGeometry()
+        self.setGeometry(screen_rect)
+        self.showMaximized()
+
+    # Mova este bloco para fora da classe MainApp
+if __name__ == '__main__':
+    try:
+        app = QtWidgets.QApplication([])
+        app.setStyle('Fusion')
+        tela_login = TelaLogin()
+        if tela_login.exec_():
+            main_app = MainApp(tela_login.username_line_edit.text())
+            main_app.show_full_screen_excluding_taskbar()
+            app.exec_()
+        else:
+            app.quit()
+    except Exception as e:
+        logging.error(f"Erro na execução do programa: {e}")
